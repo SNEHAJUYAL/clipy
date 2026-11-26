@@ -1,0 +1,53 @@
+diff --git a/packages/capture/src/sources.ts b/packages/capture/src/sources.ts
+index 2c6dd97..d56ffff 100644
+--- a/packages/capture/src/sources.ts
++++ b/packages/capture/src/sources.ts
+@@ -178,9 +178,10 @@ export function parseDshowAudioDevices(text: string): string[] {
+     if (/DirectShow audio devices/i.test(line)) legacyAudio = true;
+     else if (/DirectShow video devices/i.test(line)) legacyAudio = false;
+     if (/Alternative name/i.test(line)) continue;
+-    const tagged = /\]\s+"(.+)"\s+\((audio|video|none)\)\s*$/.exec(line);
++    // The new format lists every media type a device offers, e.g. "Cam Link 4K" (audio, video).
++    const tagged = /\]\s+"(.+)"\s+\((\w+(?:,\s*\w+)*)\)\s*$/.exec(line);
+     if (tagged) {
+-      if (tagged[2] === "audio") out.push(tagged[1]);
++      if (tagged[2].split(/,\s*/).includes("audio")) out.push(tagged[1]);
+       continue;
+     }
+     const legacy = /\]\s+"(.+)"\s*$/.exec(line);
+diff --git a/packages/capture/test/sources.test.ts b/packages/capture/test/sources.test.ts
+index a88fb93..0255952 100644
+--- a/packages/capture/test/sources.test.ts
++++ b/packages/capture/test/sources.test.ts
+@@ -41,6 +41,20 @@ const DSHOW_NEW = `[dshow @ 0000020b8f6f5a40] "Integrated Camera" (video)
+ dummy: Immediate exit requested
+ `;
+ 
++/** Devices offering more than one media type, with Windows line endings. */
++const DSHOW_MULTI_TYPE = `[dshow @ 0000020b8f6f5a40] "Integrated Camera" (video)
++[dshow @ 0000020b8f6f5a40]   Alternative name "@device_pnp_\\\\?\\usb#vid_04f2"
++[dshow @ 0000020b8f6f5a40] "Cam Link 4K" (audio, video)
++[dshow @ 0000020b8f6f5a40]   Alternative name "@device_pnp_\\\\?\\usb#vid_0fd9"
++[dshow @ 0000020b8f6f5a40] "HD Webcam C920" (video, audio)
++[dshow @ 0000020b8f6f5a40]   Alternative name "@device_pnp_\\\\?\\usb#vid_046d"
++[dshow @ 0000020b8f6f5a40] "Virtual Device" (unknown)
++[dshow @ 0000020b8f6f5a40]   Alternative name "@device_sw_{860BB310}"
++[dshow @ 0000020b8f6f5a40] "Microphone (Realtek(R) Audio)" (audio)
++[dshow @ 0000020b8f6f5a40]   Alternative name "@device_cm_{33D9A762}\\wave_{A1B2}"
++dummy: Immediate exit requested
++`.replace(/\n/g, "\r\n");
++
+ const DSHOW_LEGACY = `[dshow @ 000001] DirectShow video devices (some may be both video and audio devices)
+ [dshow @ 000001]  "Integrated Camera"
+ [dshow @ 000001]     Alternative name "@device_pnp_x"
+@@ -102,6 +116,10 @@ describe("Windows parsers", () => {
+     expect(parseDshowAudioDevices(DSHOW_NEW)).toEqual(["Microphone Array (Realtek(R) Audio)", "Headset (Jabra Evolve2 65)"]);
+   });
+ 
++  it("reads dshow devices that offer audio alongside video, in either order", () => {
++    expect(parseDshowAudioDevices(DSHOW_MULTI_TYPE)).toEqual(["Cam Link 4K", "HD Webcam C920", "Microphone (Realtek(R) Audio)"]);
++  });
++
+   it("reads dshow audio devices in the older sectioned format", () => {
+     expect(parseDshowAudioDevices(DSHOW_LEGACY)).toEqual(["Microphone (USB Audio)"]);
+   });
