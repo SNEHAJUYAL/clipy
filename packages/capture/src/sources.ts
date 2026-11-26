@@ -178,9 +178,10 @@ export function parseDshowAudioDevices(text: string): string[] {
     if (/DirectShow audio devices/i.test(line)) legacyAudio = true;
     else if (/DirectShow video devices/i.test(line)) legacyAudio = false;
     if (/Alternative name/i.test(line)) continue;
-    const tagged = /\]\s+"(.+)"\s+\((audio|video|none)\)\s*$/.exec(line);
+    // The new format lists every media type a device offers, e.g. "Cam Link 4K" (audio, video).
+    const tagged = /\]\s+"(.+)"\s+\((\w+(?:,\s*\w+)*)\)\s*$/.exec(line);
     if (tagged) {
-      if (tagged[2] === "audio") out.push(tagged[1]);
+      if (tagged[2].split(/,\s*/).includes("audio")) out.push(tagged[1]);
       continue;
     }
     const legacy = /\]\s+"(.+)"\s*$/.exec(line);
